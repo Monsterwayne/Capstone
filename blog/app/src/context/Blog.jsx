@@ -11,6 +11,7 @@ import { findProgramAddressSync } from "@project-serum/anchor/dist/cjs/utils/pub
 import bs58 from "bs58";
 import { utf8 } from "@project-serum/anchor/dist/cjs/utils/bytes";
 
+// Constants for the SPL_NOOP_ADDRESS, CHUNK_SIZE, PROGRAM_KEY, and initializing BlogContext
 const SPL_NOOP_ADDRESS = new PublicKey(
   "noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV",
 );
@@ -18,6 +19,7 @@ const CHUNK_SIZE = 900;
 const PROGRAM_KEY = new PublicKey(idl.metadata.address);
 const BlogContext = createContext();
 
+// Hook to use the blog context
 export const useBlog = () => {
   const context = useContext(BlogContext);
   if (!context) {
@@ -26,6 +28,7 @@ export const useBlog = () => {
   return context;
 };
 
+// The BlogProvider component that provides blog-related state and functions to its children
 export const BlogProvider = ({ children }) => {
   const [user, setUser] = useState();
   const [posts, setPosts] = useState([]);
@@ -49,7 +52,7 @@ export const BlogProvider = ({ children }) => {
     }
   }, [connection, anchorWallet]);
 
-  // Function to initialize or sign up a new user
+    // Async function to initialize a new user
   const initUser = async (name, avatar) => {
     if (program && publicKey) {
       try {
@@ -78,48 +81,52 @@ export const BlogProvider = ({ children }) => {
     }
   };
 
+  // Function to create a burner wallet and send SOL to it
   async function createBurnerAndSendSol() {
     let burner = Keypair.generate();
-    console.log("BURNER ACCOUNNTTTT:" + burner.publicKey);
+    console.log("BURNER ACCOUNT:" + burner.publicKey.toString());
     const lamports = await connection.getMinimumBalanceForRentExemption(0);
     const transaction = new anchor.web3.Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: publicKey,
-        toPubkey: burner.publicKey,
-        lamports: lamports * 2,
-      }),
+        SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: burner.publicKey,
+            lamports: lamports * 2,
+        }),
     );
-    let txSignature = await sendTransaction(transaction, connection, {
-      skipPreflight: false,
-    }).then(confirm);
+    let signature = await sendTransaction(transaction, connection); // Assuming sendTransaction can handle sending with the primary wallet
+    await connection.confirmTransaction(signature, "confirmed");
     return burner;
-  }
+}
 
   // Function to send a chunk of content to the blockchain using the noop program
-  const sendChunk = async (chunk) => {
-    if (!anchorWallet) {
-      throw new Error("Wallet not connected");
+  const sendChunk = async (chunk, burner) => {
+    if (!burner) {
+        throw new Error("Burner wallet not provided");
     }
-  
+
     const buffer = Buffer.from(chunk, "utf-8");
     const noopInstruction = new anchor.web3.TransactionInstruction({
-      programId: SPL_NOOP_ADDRESS,
-      keys: [],
-      data: buffer,
+        programId: SPL_NOOP_ADDRESS,
+        keys: [],
+        data: buffer,
     });
-  
-    const transaction = new anchor.web3.Transaction().add(noopInstruction);
-    transaction.feePayer = anchorWallet.publicKey;
+
+    let transaction = new anchor.web3.Transaction().add(noopInstruction);
+    transaction.feePayer = burner.publicKey;
     let { blockhash } = await connection.getLatestBlockhash();
     transaction.recentBlockhash = blockhash;
-  
-    const signedTransaction = await anchorWallet.signTransaction(transaction);
-    const txSignature = await connection.sendRawTransaction(signedTransaction.serialize(), {
-      skipPreflight: true,
-    });
-    await connection.confirmTransaction(txSignature, "confirmed");
-    return txSignature;
-  };
+
+    // Sign the transaction with the burner wallet
+    transaction = await anchor.web3.sendAndConfirmTransaction(
+        connection,
+        transaction,
+        [burner], // Use the burner Keypair for signing
+        {skipPreflight: true},
+    );
+
+    return transaction;
+};
+
 
   // Function to retrieve and assemble the content from transaction signatures
   const retrievePost = async (txSignatures) => {
@@ -171,6 +178,8 @@ export const BlogProvider = ({ children }) => {
         console.log(e);
       }
 
+      let burnerWallet = burner.publicKey;
+
       // Send each chunk to the blockchain and collect tx signatures
       const txSignatures = await Promise.all(
         chunks.map((chunk) => sendChunk(chunk, burner)),
@@ -192,7 +201,7 @@ export const BlogProvider = ({ children }) => {
       console.log(txSignatures);
 
       await program.methods
-        .createPost(title, txSignatures)
+        .createPost(title, txSignatures, burnerWallet)
         .accounts({
           userAccount: userPda,
           postAccount: postPda,
@@ -220,6 +229,7 @@ export const BlogProvider = ({ children }) => {
     return chunks;
 }
 
+// Function to confirm a transaction with a given signature
   async function confirm(signature) {
     const block = await connection.getLatestBlockhash();
     await connection.confirmTransaction({
@@ -229,6 +239,7 @@ export const BlogProvider = ({ children }) => {
     return signature;
   }
 
+  // Effect hook to fetch user and posts data on component mount
   useEffect(() => {
     const fetchUserAndPosts = async () => {
       if (program && publicKey) {
