@@ -4,6 +4,7 @@ import {
   useConnection,
   useWallet,
 } from "@solana/wallet-adapter-react";
+import { sessio }
 import { PublicKey, Connection, SystemProgram, Keypair } from "@solana/web3.js";
 import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import idl from "src/idl.json";
@@ -100,19 +101,19 @@ export const BlogProvider = ({ children }) => {
     if (!anchorWallet) {
       throw new Error("Wallet not connected");
     }
-  
+
     const buffer = Buffer.from(chunk, "utf-8");
     const noopInstruction = new anchor.web3.TransactionInstruction({
       programId: SPL_NOOP_ADDRESS,
       keys: [],
       data: buffer,
     });
-  
+
     const transaction = new anchor.web3.Transaction().add(noopInstruction);
     transaction.feePayer = anchorWallet.publicKey;
     let { blockhash } = await connection.getLatestBlockhash();
     transaction.recentBlockhash = blockhash;
-  
+
     const signedTransaction = await anchorWallet.signTransaction(transaction);
     const txSignature = await connection.sendRawTransaction(signedTransaction.serialize(), {
       skipPreflight: true,
@@ -138,8 +139,8 @@ export const BlogProvider = ({ children }) => {
     }
     return postContent;
   };
-  
-  
+
+
   // Function to create a new post
   const createPost = async (title, content) => {
     if (program && publicKey) {
@@ -188,7 +189,7 @@ export const BlogProvider = ({ children }) => {
         ],
         program.programId,
       );
-      
+
       console.log(txSignatures);
 
       await program.methods
@@ -213,12 +214,12 @@ export const BlogProvider = ({ children }) => {
   function splitIntoChunks(text, chunkSize) {
     let chunks = [];
     for (let i = 0; i < text.length; i += chunkSize) {
-        // Ensure that the slice goes from the current index i to i + chunkSize
-        // but does not exceed the text's length
-        chunks.push(text.slice(i, Math.min(i + chunkSize, text.length)));
+      // Ensure that the slice goes from the current index i to i + chunkSize
+      // but does not exceed the text's length
+      chunks.push(text.slice(i, Math.min(i + chunkSize, text.length)));
     }
     return chunks;
-}
+  }
 
   async function confirm(signature) {
     const block = await connection.getLatestBlockhash();
@@ -255,13 +256,13 @@ export const BlogProvider = ({ children }) => {
           const postAccounts = await program.account.postState.all();
 
           console.log("postAccounts:", postAccounts);
-console.log("Type of postAccounts:", Array.isArray(postAccounts));
+          console.log("Type of postAccounts:", Array.isArray(postAccounts));
 
- 
+
           const postFetchPromises = postAccounts.map(async (postAccount) => {
             console.log("Post account:", postAccount);
             try {
-             
+
               const content = await retrievePost(postAccount.account.txSignatures);
               console.log("Content:", content);
               return { ...postAccount.account, content };
@@ -270,7 +271,7 @@ console.log("Type of postAccounts:", Array.isArray(postAccounts));
               return { ...postAccount.account, content: 'Failed to load content' };
             }
           });
-  
+
           const postsWithContent = await Promise.all(postFetchPromises);
           setPosts(postsWithContent);
         } catch (error) {
@@ -278,7 +279,7 @@ console.log("Type of postAccounts:", Array.isArray(postAccounts));
         }
       }
     };
-  
+
     fetchUserAndPosts();
   }, [program, publicKey]);
 

@@ -4,6 +4,7 @@ import { Router } from "src/router"
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react"
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets"
 import "./App.css"
+import SessionProvider from "./components/SessionProvider"
 
 
 export const App = () => {
@@ -19,9 +20,11 @@ export const App = () => {
   return (
     <ConnectionProvider endpoint={endpoint}>
       <WalletProvider wallets={wallets} autoConnect>
-        <BlogProvider>
-          <Router />
-        </BlogProvider>
+        <SessionProvider>
+          <BlogProvider>
+            <Router />
+          </BlogProvider>
+        </SessionProvider>
       </WalletProvider>
     </ConnectionProvider>
 
